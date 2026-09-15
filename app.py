@@ -13,7 +13,7 @@ import os
 st.set_page_config(page_title="天文图像方向解析", layout="wide")
 st.title("FITS 图像北方向与天顶方向解析")
 
-# --- 你的计算逻辑 (基本保持不变) ---
+# --- 核心计算逻辑 ---
 def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.6067, height=4200):
     location = EarthLocation(lon=lon * u.deg, lat=lat * u.deg, height=height * u.m)
     hdu = fits.open(fits_file_path)[0]
@@ -78,12 +78,15 @@ if uploaded_file is not None:
         x_center, y_center = hdu.header['CRPIX1'], hdu.header['CRPIX2']
         vmin, vmax = np.percentile(image_data, (0.1, 99.9))
 
-        # 第一幅图：DS9 视角 (origin='lower')
-        # ---------- 从这里开始替换旧的绘图代码 ----------
+        # 【修复点】：在这里补上了箭头的三角函数计算！
+        arrow_length = 80
+        dx_n = arrow_length * np.cos(north_rad)
+        dy_n = arrow_length * np.sin(north_rad)
+        dx_z = arrow_length * np.cos(zenith_rad)
+        dy_z = arrow_length * np.sin(zenith_rad)
         
         # 第一幅图：PHD 视角 (原点在左上) - 放在上面
         st.subheader("PHD 视角 (原点在左上)")
-        # 将 figsize 从 (6,4) 放大到 (10,6)，dpi 提高到 120 增加清晰度
         fig2, ax2 = plt.subplots(figsize=(10, 6), dpi=120) 
         im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
         
