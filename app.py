@@ -96,7 +96,7 @@ if uploaded_file is not None:
         dy_z = arrow_length * np.sin(zenith_rad)
         
         # 第一幅图：PHD 视角 (原点在左上) - 放在上面
-        st.subheader("PHD 视角 (原点在左上)")
+        st.subheader("PHD 视角")
         fig2, ax2 = plt.subplots(figsize=(10, 6), dpi=120) 
         im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
         
@@ -112,7 +112,7 @@ if uploaded_file is not None:
         st.markdown("---") 
 
         # 第二幅图：DS9 视角 (原点在左下) - 放在下面
-        st.subheader("DS9 视角 (原点在左下)")
+        st.subheader("DS9 视角")
         fig1, ax1 = plt.subplots(figsize=(10, 6), dpi=120)
         im1 = ax1.imshow(image_data, cmap='gray', origin='lower', vmin=vmin, vmax=vmax)
         
