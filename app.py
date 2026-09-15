@@ -54,10 +54,18 @@ def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.606
 
 # --- 侧边栏：参数输入与文件上传 ---
 with st.sidebar:
-    st.header("参数设置")
-    lon_input = st.number_input("经度 (deg)", value=93.8961, format="%.4f")
-    lat_input = st.number_input("纬度 (deg)", value=38.6067, format="%.4f")
-    height_input = st.number_input("海拔 (m)", value=4200.0)
+    st.header("台址参数")
+    # 改为固定显示，不可修改
+    st.markdown("- **经度 (deg)**: 93.8961\n- **纬度 (deg)**: 38.6067\n- **海拔 (m)**: 4200.0")
+    
+    st.markdown("---")
+    
+    st.header("图像显示设置")
+    # 添加对比度百分位调节框，默认值设为 0.1 和 99.9
+    vmin_percentile = st.number_input("最小对比度百分位 (%)", min_value=0.0, max_value=100.0, value=0.1, step=0.1, format="%.1f")
+    vmax_percentile = st.number_input("最大对比度百分位 (%)", min_value=0.0, max_value=100.0, value=99.9, step=0.1, format="%.1f")
+    
+    st.markdown("---")
     
     uploaded_file = st.file_uploader("上传 FITS 文件", type=['fits', 'fit'])
 
@@ -70,15 +78,17 @@ if uploaded_file is not None:
 
     try:
         st.write("正在解析文件...")
+        # 传入固定的冷湖台址参数
         north_rad, zenith_rad, hdu = calculate_North_and_Zenith_direction(
-            tmp_file_path, lon=lon_input, lat=lat_input, height=height_input
+            tmp_file_path, lon=93.8961, lat=38.6067, height=4200.0
         )
         
         image_data = hdu.data
         x_center, y_center = hdu.header['CRPIX1'], hdu.header['CRPIX2']
-        vmin, vmax = np.percentile(image_data, (0.1, 99.9))
+        
+        # 使用侧边栏获取的百分位来计算极值
+        vmin, vmax = np.percentile(image_data, (vmin_percentile, vmax_percentile))
 
-        # 【修复点】：在这里补上了箭头的三角函数计算！
         arrow_length = 80
         dx_n = arrow_length * np.cos(north_rad)
         dy_n = arrow_length * np.sin(north_rad)
@@ -96,10 +106,9 @@ if uploaded_file is not None:
         ax2.arrow(x_center, y_center, dx_z, dy_z, color='cyan', width=1.5, head_width=15, head_length=15)
         ax2.text(x_center + dx_z + 10, y_center + dy_z + 10, 'Z', color='cyan', fontsize=14, fontweight='bold')
         
-        # use_container_width=True 会让图像自动拉伸，撑满网页的显示区域
         st.pyplot(fig2, use_container_width=True) 
 
-        # 加一条水平分割线，让页面更好看
+        # 加一条水平分割线
         st.markdown("---") 
 
         # 第二幅图：DS9 视角 (原点在左下) - 放在下面
