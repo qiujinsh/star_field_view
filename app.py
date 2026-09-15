@@ -82,10 +82,24 @@ if uploaded_file is not None:
 
         # 第一幅图：DS9 视角 (origin='lower')
         with col1:
-            st.subheader("DS9 视角 (原点在左下)")
+            st.subheader("PHD 视角")
+            fig2, ax2 = plt.subplots(figsize=(6, 4), dpi=100)
+            im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
+            
+            ax2.arrow(x_center, y_center, dx_n, dy_n, color='red', width=1.5, head_width=15, head_length=15)
+            ax2.text(x_center + dx_n + 10, y_center + dy_n + 10, 'N', color='red', fontsize=12, fontweight='bold')
+
+            ax2.arrow(x_center, y_center, dx_z, dy_z, color='cyan', width=1.5, head_width=15, head_length=15)
+            ax2.text(x_center + dx_z + 10, y_center + dy_z + 10, 'Z', color='cyan', fontsize=12, fontweight='bold')
+            st.pyplot(fig2)
+
+            
+        # 第二幅图：PHD 视角 (origin='upper')
+        with col2:
+            st.subheader("DS9 视角")
             fig1, ax1 = plt.subplots(figsize=(6, 4), dpi=100)
             im1 = ax1.imshow(image_data, cmap='gray', origin='lower', vmin=vmin, vmax=vmax)
-            fig1.colorbar(im1, ax=ax1, label='Pixel Value')
+            # fig1.colorbar(im1, ax=ax1, label='Pixel Value')
             
             arrow_length = 80
             dx_n = arrow_length * np.cos(north_rad)
@@ -99,18 +113,6 @@ if uploaded_file is not None:
             ax1.text(x_center + dx_z + 10, y_center + dy_z + 10, 'Z', color='cyan', fontsize=12, fontweight='bold')
             st.pyplot(fig1) # 使用 st.pyplot 替代 plt.show()
 
-        # 第二幅图：PHD 视角 (origin='upper')
-        with col2:
-            st.subheader("PHD 视角 (原点在左上)")
-            fig2, ax2 = plt.subplots(figsize=(6, 4), dpi=100)
-            im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
-            
-            ax2.arrow(x_center, y_center, dx_n, dy_n, color='red', width=1.5, head_width=15, head_length=15)
-            ax2.text(x_center + dx_n + 10, y_center + dy_n + 10, 'N', color='red', fontsize=12, fontweight='bold')
-
-            ax2.arrow(x_center, y_center, dx_z, dy_z, color='cyan', width=1.5, head_width=15, head_length=15)
-            ax2.text(x_center + dx_z + 10, y_center + dy_z + 10, 'Z', color='cyan', fontsize=12, fontweight='bold')
-            st.pyplot(fig2)
 
     except Exception as e:
         st.error(f"解析出错: {e}")
