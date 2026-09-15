@@ -22,6 +22,7 @@ def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.606
     x_center, y_center = hdu.header['CRPIX1'], hdu.header['CRPIX2']
     ra_center, dec_center = wcs.pixel_to_world_values(x_center, y_center)
 
+    # calculate North direction
     dec_north = dec_center + 0.01
     x_north, y_north = wcs.world_to_pixel_values(ra_center, dec_north)
     dx_north = x_north - x_center
@@ -29,6 +30,7 @@ def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.606
     north_angle_rad = np.arctan2(dy_north, dx_north)
     north_angle_deg = np.degrees(north_angle_rad)
 
+    # calculate Zenith direction
     obs_time = Time(hdu.header['DATE-OBS'], format='isot', scale='utc')
     target = SkyCoord(ra=ra_center * u.deg, dec=dec_center * u.deg, frame='icrs')
     altaz_frame = AltAz(obstime=obs_time, location=location)
@@ -49,44 +51,61 @@ def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.606
 
     zenith_angle_img = zenith_angle_img % 360
     zenith_angle_rad = np.radians(zenith_angle_img)
+    
+    # 计算红蓝箭头在图像上的真实夹角 (0~180度)
+    arrow_diff_deg = abs(zenith_angle_img - north_angle_deg) % 360
+    if arrow_diff_deg > 180:
+        arrow_diff_deg = 360 - arrow_diff_deg
 
-    return north_angle_rad, zenith_angle_rad, hdu
+    return north_angle_rad, zenith_angle_rad, arrow_diff_deg, hdu
 
-# --- 侧边栏：参数输入与文件上传 ---
+# --- 侧边栏 ---
 with st.sidebar:
     st.header("台址参数")
-    # 改为固定显示，不可修改
     st.markdown("- **经度 (deg)**: 93.8961\n- **纬度 (deg)**: 38.6067\n- **海拔 (m)**: 4200.0")
     
     st.markdown("---")
     
     st.header("图像显示设置")
-    # 添加对比度百分位调节框，默认值设为 0.1 和 99.9
     vmin_percentile = st.number_input("最小对比度百分位 (%)", min_value=0.0, max_value=100.0, value=0.1, step=0.1, format="%.1f")
     vmax_percentile = st.number_input("最大对比度百分位 (%)", min_value=0.0, max_value=100.0, value=99.9, step=0.1, format="%.1f")
     
     st.markdown("---")
     
+    # --- 便捷计算器 ---
+    st.header("便捷计算器")
+    calc_input = st.number_input("180 - 【输入角度】 =", value=0.00, step=0.01, format="%.2f")
+    st.success(f"**结果: {180.0 - calc_input:.2f}**")
+    
+    st.markdown("---")
+    
     uploaded_file = st.file_uploader("上传 FITS 文件", type=['fits', 'fit'])
+    
+    # 在侧边栏预留一个空位，用来显示稍后算出的视角差
+    sidebar_result_placeholder = st.empty()
 
 # --- 主显示区：绘图 ---
 if uploaded_file is not None:
-    # 临时保存上传的文件供 astropy 读取
     with tempfile.NamedTemporaryFile(delete=False, suffix=".fits") as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
         tmp_file_path = tmp_file.name
 
     try:
-        st.write("正在解析文件...")
-        # 传入固定的冷湖台址参数
-        north_rad, zenith_rad, hdu = calculate_North_and_Zenith_direction(
+        # 解包时增加 arrow_diff 接收夹角数值
+        north_rad, zenith_rad, arrow_diff, hdu = calculate_North_and_Zenith_direction(
             tmp_file_path, lon=93.8961, lat=38.6067, height=4200.0
         )
         
+        # 在主页面醒目显示视角差
+        st.success(f"✅ 解析成功！**红蓝箭头直接的角度（视角差）为：{arrow_diff:.2f}°**")
+        
+        # 同时在侧边栏显示视角差
+        with sidebar_result_placeholder.container():
+            st.info(f"📍 **当前图像视角差**: {arrow_diff:.2f}°")
+            # st.caption("你可以将这个数值输入到上方的计算器中")
+
         image_data = hdu.data
         x_center, y_center = hdu.header['CRPIX1'], hdu.header['CRPIX2']
-        
-        # 使用侧边栏获取的百分位来计算极值
         vmin, vmax = np.percentile(image_data, (vmin_percentile, vmax_percentile))
 
         arrow_length = 80
@@ -96,7 +115,7 @@ if uploaded_file is not None:
         dy_z = arrow_length * np.sin(zenith_rad)
         
         # 第一幅图：PHD 视角 (原点在左上) - 放在上面
-        st.subheader("PHD 视角")
+        st.subheader("PHD 视角 (原点在左上)")
         fig2, ax2 = plt.subplots(figsize=(10, 6), dpi=120) 
         im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
         
@@ -108,11 +127,10 @@ if uploaded_file is not None:
         
         st.pyplot(fig2, use_container_width=True) 
 
-        # 加一条水平分割线
         st.markdown("---") 
 
         # 第二幅图：DS9 视角 (原点在左下) - 放在下面
-        st.subheader("DS9 视角")
+        st.subheader("DS9 视角 (原点在左下)")
         fig1, ax1 = plt.subplots(figsize=(10, 6), dpi=120)
         im1 = ax1.imshow(image_data, cmap='gray', origin='lower', vmin=vmin, vmax=vmax)
         
@@ -127,6 +145,6 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"解析出错: {e}")
     finally:
-        os.remove(tmp_file_path) # 清理临时文件
+        os.remove(tmp_file_path)
 else:
     st.info("请在左侧侧边栏上传一个 FITS 文件以开始。")
