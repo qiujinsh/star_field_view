@@ -1,5 +1,6 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -57,7 +58,8 @@ def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.606
     if arrow_diff_deg > 180:
         arrow_diff_deg = 360 - arrow_diff_deg
 
-    return north_angle_rad, zenith_angle_rad, arrow_diff_deg, hdu
+    # 将 wcs, obs_time, location 一并返回，供后续检验功能使用
+    return north_angle_rad, zenith_angle_rad, arrow_diff_deg, hdu, wcs, obs_time, location
 
 # --- 侧边栏 ---
 with st.sidebar:
@@ -81,8 +83,11 @@ with st.sidebar:
     
     uploaded_file = st.file_uploader("上传 FITS 文件", type=['fits', 'fit'])
     
-    # 在侧边栏预留一个空位，用来显示稍后算出的视角差
+    # 预留空位显示视角差
     sidebar_result_placeholder = st.empty()
+    
+    # 预留空位显示检验表格
+    sidebar_check_placeholder = st.empty()
 
 # --- 主显示区：绘图 ---
 if uploaded_file is not None:
@@ -91,18 +96,15 @@ if uploaded_file is not None:
         tmp_file_path = tmp_file.name
 
     try:
-        # 解包时增加 arrow_diff 接收夹角数值
-        north_rad, zenith_rad, arrow_diff, hdu = calculate_North_and_Zenith_direction(
+        # 解包接收所有参数
+        north_rad, zenith_rad, arrow_diff, hdu, wcs, obs_time, location = calculate_North_and_Zenith_direction(
             tmp_file_path, lon=93.8961, lat=38.6067, height=4200.0
         )
         
-        # 在主页面醒目显示视角差
         st.success(f"✅ 解析成功！**红蓝箭头直接的角度（视角差）为：{arrow_diff:.2f}°**")
         
-        # 同时在侧边栏显示视角差
         with sidebar_result_placeholder.container():
             st.info(f"📍 **当前图像视角差**: {arrow_diff:.2f}°")
-            # st.caption("你可以将这个数值输入到上方的计算器中")
 
         image_data = hdu.data
         x_center, y_center = hdu.header['CRPIX1'], hdu.header['CRPIX2']
@@ -113,8 +115,47 @@ if uploaded_file is not None:
         dy_n = arrow_length * np.sin(north_rad)
         dx_z = arrow_length * np.cos(zenith_rad)
         dy_z = arrow_length * np.sin(zenith_rad)
-        
-        # 第一幅图：PHD 视角 (原点在左上) - 放在上面
+
+        # ---------------- 方向检验功能 (侧边栏显示) ----------------
+        with sidebar_check_placeholder.container():
+            st.markdown("---")
+            st.header("方向数据检验 (沿箭头取10点)")
+            
+            # 生成 10 个采样的比例系数 (从中心 0.1 延伸到箭头尖端 1.0)
+            t_vals = np.linspace(0.1, 1.0, 10)
+            
+            # 1. 检查北方向 (红色箭头)
+            st.subheader("🔴 北方向 (赤纬应递增)")
+            n_x_pts = x_center + t_vals * dx_n
+            n_y_pts = y_center + t_vals * dy_n
+            n_ra, n_dec = wcs.pixel_to_world_values(n_x_pts, n_y_pts)
+            
+            df_north = pd.DataFrame({
+                "点": range(1, 11),
+                "赤经 RA (deg)": n_ra,
+                "赤纬 Dec (deg)": n_dec
+            })
+            st.dataframe(df_north.style.format({"赤经 RA (deg)": "{:.4f}", "赤纬 Dec (deg)": "{:.4f}"}), hide_index=True)
+
+            # 2. 检查天顶方向 (青色箭头)
+            st.subheader("🔵 天顶方向 (高度角应递增)")
+            z_x_pts = x_center + t_vals * dx_z
+            z_y_pts = y_center + t_vals * dy_z
+            z_ra, z_dec = wcs.pixel_to_world_values(z_x_pts, z_y_pts)
+            
+            # 将 WCS 像素域转换出的 RA/Dec 强行转入 AltAz 水平坐标系
+            z_coords = SkyCoord(ra=z_ra*u.deg, dec=z_dec*u.deg, frame='icrs')
+            z_altaz = z_coords.transform_to(AltAz(obstime=obs_time, location=location))
+            
+            df_zenith = pd.DataFrame({
+                "点": range(1, 11),
+                "方位角 Az (deg)": z_altaz.az.deg,
+                "高度角 Alt (deg)": z_altaz.alt.deg
+            })
+            st.dataframe(df_zenith.style.format({"方位角 Az (deg)": "{:.4f}", "高度角 Alt (deg)": "{:.4f}"}), hide_index=True)
+        # --------------------------------------------------------
+
+        # 第一幅图：PHD 视角 (原点在左上)
         st.subheader("PHD 视角 (原点在左上)")
         fig2, ax2 = plt.subplots(figsize=(10, 6), dpi=120) 
         im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
@@ -129,7 +170,7 @@ if uploaded_file is not None:
 
         st.markdown("---") 
 
-        # 第二幅图：DS9 视角 (原点在左下) - 放在下面
+        # 第二幅图：DS9 视角 (原点在左下)
         st.subheader("DS9 视角 (原点在左下)")
         fig1, ax1 = plt.subplots(figsize=(10, 6), dpi=120)
         im1 = ax1.imshow(image_data, cmap='gray', origin='lower', vmin=vmin, vmax=vmax)
