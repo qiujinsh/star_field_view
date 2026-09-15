@@ -59,27 +59,28 @@ def calculate_North_and_Zenith_direction(fits_file_path, lon=93.8961, lat=38.606
 
 # --- 侧边栏 ---
 with st.sidebar:
-    st.header("台址参数")
-    st.markdown("- **经度 (deg)**: 93.8961\n- **纬度 (deg)**: 38.6067\n- **海拔 (m)**: 4200.0")
+    # 【修改点1】：将文件上传提到了最上面，这是最重要的入口！
+    st.header("📂 输入数据")
+    uploaded_file = st.file_uploader("上传 FITS 文件", type=['fits', 'fit'])
     
-    # 【修改点1】：将结果显示占位符提到了台址信息正下方
     sidebar_result_placeholder = st.empty()
     
     st.markdown("---")
     
-    st.header("图像显示设置")
+    st.header("📍 台址参数")
+    st.markdown("- **经度 (deg)**: 93.8961\n- **纬度 (deg)**: 38.6067\n- **海拔 (m)**: 4200.0")
+    
+    st.markdown("---")
+    
+    st.header("⚙️ 图像显示设置")
     vmin_percentile = st.number_input("最小对比度百分位 (%)", min_value=0.0, max_value=100.0, value=0.1, step=0.1, format="%.1f")
     vmax_percentile = st.number_input("最大对比度百分位 (%)", min_value=0.0, max_value=100.0, value=99.9, step=0.1, format="%.1f")
     
     st.markdown("---")
     
-    st.header("便捷计算器")
+    st.header("🧮 便捷计算器")
     calc_input = st.number_input("180 - 【输入角度】 =", value=0.00, step=0.01, format="%.2f")
     st.success(f"**结果: {180.0 - calc_input:.2f}**")
-    
-    st.markdown("---")
-    
-    uploaded_file = st.file_uploader("上传 FITS 文件", type=['fits', 'fit'])
     
     sidebar_check_placeholder = st.empty()
 
@@ -96,7 +97,6 @@ if uploaded_file is not None:
         
         st.success(f"✅ 解析成功！**红蓝箭头直接的角度（视角差）为：{arrow_diff:.2f}°**")
         
-        # 结果现在会显示在侧边栏靠上的位置
         with sidebar_result_placeholder.container():
             st.info(f"📍 **当前图像视角差**: {arrow_diff:.2f}°")
 
@@ -113,7 +113,6 @@ if uploaded_file is not None:
         with sidebar_check_placeholder.container():
             st.markdown("---")
             st.header("方向数据检验 (沿箭头取10点)")
-            # 缩短采样距离，避免球面投影畸变
             t_vals = np.linspace(0.02, 0.2, 10)
             
             st.subheader("🔴 北方向 (赤纬应递增)")
@@ -137,19 +136,18 @@ if uploaded_file is not None:
         fig2, ax2 = plt.subplots(figsize=(10, 6), dpi=120) 
         im2 = ax2.imshow(image_data, cmap='gray', origin='upper', vmin=vmin, vmax=vmax)
         
-        # 原有的北和天顶箭头
         ax2.arrow(x_center, y_center, dx_n, dy_n, color='red', width=1.5, head_width=15, head_length=15)
         ax2.text(x_center + dx_n + 10, y_center + dy_n + 10, 'N', color='red', fontsize=14, fontweight='bold')
         ax2.arrow(x_center, y_center, dx_z, dy_z, color='cyan', width=1.5, head_width=15, head_length=15)
         ax2.text(x_center + dx_z + 10, y_center + dy_z + 10, 'Z', color='cyan', fontsize=14, fontweight='bold')
         
-        # 【修改点2】：绘制 113° 的狭缝参考线
+        # 【修改点2】：解决原点在左上导致的 Y 轴翻转问题，实现视觉上的逆时针
         slit_angle_rad = np.radians(113)
-        slit_half_len = 200  # 狭缝线段的一半长度（可根据图像总像素微调）
+        slit_half_len = 200  
         dx_slit = slit_half_len * np.cos(slit_angle_rad)
-        dy_slit = slit_half_len * np.sin(slit_angle_rad)
+        # 注意这里的负号！抵消 origin='upper' 带来的顺时针化
+        dy_slit = - slit_half_len * np.sin(slit_angle_rad) 
         
-        # 用连线的方式画出穿过中心的狭缝 (黄色，线宽2，虚线)
         ax2.plot([x_center - dx_slit, x_center + dx_slit], 
                  [y_center - dy_slit, y_center + dy_slit], 
                  color='yellow', linewidth=2, linestyle='--')
@@ -176,4 +174,4 @@ if uploaded_file is not None:
     finally:
         os.remove(tmp_file_path)
 else:
-    st.info("请在左侧侧边栏上传一个 FITS 文件以开始。")
+    st.info("👈 请在左侧侧边栏上传 FITS 文件以开始。")
