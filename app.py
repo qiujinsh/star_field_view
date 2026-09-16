@@ -73,7 +73,7 @@ with st.sidebar:
     st.markdown("---")
     
     st.header("⚙️ 图像显示设置")
-    vmin_percentile = st.number_input("最小对比度百分位 (%)", min_value=0.0, max_value=100.0, value=0.1, step=0.1, format="%.1f")
+    vmin_percentile = st.number_input("最小对比度百分位 (%)", min_value=-0.1, max_value=100.0, value=0.1, step=0.1, format="%.1f")
     vmax_percentile = st.number_input("最大对比度百分位 (%)", min_value=0.0, max_value=100.0, value=99.9, step=0.1, format="%.1f")
     
     st.markdown("---")
